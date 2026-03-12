@@ -11,6 +11,8 @@ This repo is intentionally separate from [`mikebd/py-scripts`](https://github.co
 ## Layout
 
 - `postgres/`: backup, restore, and inspection scripts for PostgreSQL dumps
+  - includes `psql-ro-wrapper.sh`, a generic read-only SQL runner that uses
+    local `psql` when available and falls back to Docker `postgres:17`
 
 ## Local Usage
 
@@ -25,6 +27,20 @@ postgres-db-restore.sh
 postgres-db-restore-parallel.sh
 postgres-db-scan-parallel-backup.sh
 ```
+
+For environment-specific access, keep thin shims in `~/.local/bin` that export
+PG env vars from your local `DB_*` env file format and then `exec`:
+
+```bash
+~/src/mikebd/bash/scripts/postgres/psql-ro-wrapper.sh <sql-file|- for stdin>
+```
+
+Use this template as a starting point for those shims:
+
+- `postgres/psql-ro-shim.example.sh`
+
+It demonstrates translating `DB_*` source variables into the PG-native
+variables expected by `psql-ro-wrapper.sh`.
 
 ## Related Repo
 
