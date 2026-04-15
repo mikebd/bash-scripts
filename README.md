@@ -8,6 +8,28 @@ This repo is intentionally separate from [`mikebd/py-scripts`](https://github.co
 - use the Python repo for more structured tools with richer UX, tests, and packaging
 - some scripts may start here and later be promoted into the Python repo when the logic outgrows Bash
 
+## Portability
+
+This repo optimizes for simplicity, directness, and local usefulness, not for
+maximum shell portability.
+
+It is currently used only on Pop!_OS, which is Ubuntu-based. Users on other
+operating systems may need to adapt these scripts before they are safe and
+correct to run, and should treat them as inspiration rather than as
+drop-in-compatible tools.
+
+Examples of intentionally non-prioritized portability concerns include:
+
+- GNU vs BSD differences in common tools such as `xargs`, `sed`, `date`, and
+  `awk`
+- availability and behavior of Linux-oriented tools such as `getent`
+- Bash version differences, including features that may not exist in older
+  platform-default Bash installs
+- local assumptions about Docker, `psql`, clipboard tools, and other machine
+  setup details
+- environment- or distro-specific defaults that may differ on macOS, other
+  Linux distributions, or CI runners
+
 ## Layout
 
 - `postgres/`: backup, restore, and inspection scripts for PostgreSQL dumps
