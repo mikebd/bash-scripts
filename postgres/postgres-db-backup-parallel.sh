@@ -81,6 +81,6 @@ if [[ -n "$schema" ]]; then
 fi
 
 mapfile -t docker_host_args < <(docker_host_args_for "$host")
-docker run --rm "${docker_host_args[@]}" "${env_args[@]}" -v "$PWD:/backup" -w /backup postgres:17 "${pg_args[@]}"
+time docker run --rm "${docker_host_args[@]}" "${env_args[@]}" -v "$PWD:/backup" -w /backup postgres:17 "${pg_args[@]}"
 
 echo "Backup written to $output_dir_host"
