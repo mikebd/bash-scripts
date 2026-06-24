@@ -32,6 +32,8 @@ Examples of intentionally non-prioritized portability concerns include:
 
 ## Layout
 
+- `codex/logs/`: Codex SQLite log database helpers, including a trigger manager
+  for suppressing noisy low-level log rows
 - `postgres/`: backup, restore, and inspection scripts for PostgreSQL dumps
   - includes `psql-ro-wrapper.sh`, a generic read-only SQL runner that uses
     local `psql` when available and falls back to Docker `postgres:17`
