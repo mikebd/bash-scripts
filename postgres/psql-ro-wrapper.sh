@@ -27,6 +27,11 @@ fi
 
 sql_input="$1"
 shift || true
+sql_input_dir=""
+
+if [[ "${sql_input}" != "-" ]]; then
+  sql_input_dir="$(cd -- "$(dirname -- "${sql_input}")" && pwd)"
+fi
 
 # Enforce read-only sessions and bounded runtime by default.
 readonly_opts="-c default_transaction_read_only=on -c statement_timeout=${PG_STATEMENT_TIMEOUT_MS:-25000}"
@@ -56,11 +61,14 @@ run_docker_psql() {
       -e PGOPTIONS="${PGOPTIONS}" \
       postgres:17 psql "${conn}" -v ON_ERROR_STOP=1 -P pager=off "$@"
   else
-    # Pipe file contents because containerized psql cannot read host file paths directly.
-    cat "${sql_input}" | docker run --rm --network host -i \
+    # Mount the SQL file directory so psql can read the same absolute file path
+    # inside the container. This avoids docker -i stdin hangs for reusable
+    # file-based query workflows while keeping stdin mode available for "-".
+    docker run --rm --network host \
+      -v "${sql_input_dir}:${sql_input_dir}:ro" \
       -e PGPASSWORD="${PGPASSWORD}" \
       -e PGOPTIONS="${PGOPTIONS}" \
-      postgres:17 psql "${conn}" -v ON_ERROR_STOP=1 -P pager=off "$@"
+      postgres:17 psql "${conn}" -v ON_ERROR_STOP=1 -P pager=off -f "${sql_input}" "$@"
   fi
 }
 

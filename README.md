@@ -37,6 +37,9 @@ Examples of intentionally non-prioritized portability concerns include:
 - `postgres/`: backup, restore, and inspection scripts for PostgreSQL dumps
   - includes `psql-ro-wrapper.sh`, a generic read-only SQL runner that uses
     local `psql` when available and falls back to Docker `postgres:17`
+  - file-mode Docker fallback mounts host SQL paths and runs `psql -f` instead
+    of stdin piping because `docker run -i` can hang unpredictably in local
+    wrapper usage
 
 ## Local Usage
 
