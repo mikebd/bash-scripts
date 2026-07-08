@@ -2,6 +2,8 @@
 
 Utilities in this directory manage local Codex SQLite log retention.
 
+Motivation: [Codex SQLite feedback logs can write ~640 TB/year and rapidly consume SSD endurance](https://github.com/openai/codex/issues/28224)
+
 Codex currently stores structured logs in:
 
 ```text
