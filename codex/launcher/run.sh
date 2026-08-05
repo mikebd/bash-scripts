@@ -83,17 +83,6 @@ fi
 cd "$worktree_dir"
 
 mikebd_launcher_load_config
-cache_home="$(mikebd_launcher_prepare_cache_home "$worktree_dir")" || exit 1
-go_tmp_root="$cache_home"
-go_cache_dir="$go_tmp_root/go-cache"
-go_mod_cache_dir="$go_tmp_root/go-mod"
-go_tmp_dir="$go_tmp_root/go-tmp"
-golangci_cache_dir="$go_tmp_root/golangci-cache"
-tmp_dir="$go_tmp_root/tmp"
-for cache_dir in "$go_cache_dir" "$go_mod_cache_dir" "$go_tmp_dir" "$golangci_cache_dir" "$tmp_dir"; do
-  (umask 077; mkdir -p "$cache_dir") || exit 1
-  chmod 700 "$cache_dir" || exit 1
-done
 
 canonical_dir() {
   local path="$1"
@@ -119,6 +108,49 @@ add_dir_if_unique() {
   add_dirs+=("$canonical")
 }
 
+add_writable_directory() {
+  local path="$1"
+
+  case "$path" in
+    /*) ;;
+    *)
+      echo "error: launcher writable directory must be absolute: $path" >&2
+      return 1
+      ;;
+  esac
+  mkdir -p "$path" || {
+    echo "error: unable to create launcher writable directory: $path" >&2
+    return 1
+  }
+  add_dir_if_unique "$path"
+}
+
+add_go_cache_directories() {
+  local go_cache_dir go_mod_cache_dir
+
+  command -v go >/dev/null 2>&1 || return 0
+  go_cache_dir="$(go env GOCACHE)" || {
+    echo "error: unable to determine Go build cache directory" >&2
+    return 1
+  }
+  go_mod_cache_dir="$(go env GOMODCACHE)" || {
+    echo "error: unable to determine Go module cache directory" >&2
+    return 1
+  }
+  if [ "$go_cache_dir" != "off" ]; then
+    add_writable_directory "$go_cache_dir" || return 1
+  fi
+  add_writable_directory "$go_mod_cache_dir" || return 1
+}
+
+add_golangci_cache_directory() {
+  local golangci_cache_dir
+
+  command -v golangci-lint >/dev/null 2>&1 || return 0
+  golangci_cache_dir="${GOLANGCI_LINT_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/golangci-lint}"
+  add_writable_directory "$golangci_cache_dir"
+}
+
 if [ "${#CODEX_LAUNCHER_ADD_DIRS[@]}" -gt 0 ]; then
   for configured_dir in "${CODEX_LAUNCHER_ADD_DIRS[@]}"; do
     add_dir_if_unique "$configured_dir"
@@ -126,6 +158,8 @@ if [ "${#CODEX_LAUNCHER_ADD_DIRS[@]}" -gt 0 ]; then
 fi
 add_dir_if_unique "$worktree_dir/.context"
 add_dir_if_unique "$worktree_git_dir"
+add_go_cache_directories || exit 1
+add_golangci_cache_directory || exit 1
 
 codex_args=(--sandbox "$CODEX_LAUNCHER_SANDBOX")
 if [ -n "$CODEX_LAUNCHER_MODEL" ]; then
@@ -164,11 +198,6 @@ if [ -n "${CODEX_HOME:-}" ]; then
 fi
 codex_environment+=(
   USE_RTK="${USE_RTK:-$CODEX_LAUNCHER_USE_RTK}" \
-  GOCACHE="${GOCACHE:-$go_cache_dir}" \
-  GOMODCACHE="${GOMODCACHE:-$go_mod_cache_dir}" \
-  GOTMPDIR="${GOTMPDIR:-$go_tmp_dir}" \
-  GOLANGCI_LINT_CACHE="${GOLANGCI_LINT_CACHE:-$golangci_cache_dir}" \
-  TMPDIR="${TMPDIR:-$tmp_dir}" \
   RUST_LOG="${RUST_LOG:-warn}"
 )
 exec "${codex_environment[@]}" "${CODEX_BIN:-codex}" "${codex_command[@]}"

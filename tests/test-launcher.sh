@@ -6,6 +6,7 @@ mikebd_bash_scripts_test_add_dir=""
 mikebd_bash_scripts_test_config=""
 mikebd_bash_scripts_test_fake=""
 mikebd_bash_scripts_test_fake_output=""
+mikebd_bash_scripts_test_fake_bin=""
 mikebd_bash_scripts_test_primary=""
 mikebd_bash_scripts_test_root=""
 mikebd_bash_scripts_test_target=""
@@ -48,8 +49,10 @@ printf '%s\n' "$2" >"$PREPARE_OUTPUT"
 EOF
 chmod 755 "$prepare"
 
-CODEX_BIN="$mikebd_bash_scripts_test_fake" MIKEBD_BASH_SCRIPTS_TEST_FAKE_OUTPUT="$mikebd_bash_scripts_test_fake_output" PREPARE_OUTPUT="$prepare_output" \
-  CODEX_HOME="$mikebd_bash_scripts_test_tmp_root/codex-home" CODEX_LAUNCHER_CONFIG="$mikebd_bash_scripts_test_config" USE_RTK=1 \
+env -u GOCACHE -u GOMODCACHE -u GOTMPDIR -u GOLANGCI_LINT_CACHE -u TMPDIR \
+  CODEX_BIN="$mikebd_bash_scripts_test_fake" MIKEBD_BASH_SCRIPTS_TEST_FAKE_OUTPUT="$mikebd_bash_scripts_test_fake_output" PREPARE_OUTPUT="$prepare_output" \
+  CODEX_HOME="$mikebd_bash_scripts_test_tmp_root/codex-home" CODEX_LAUNCHER_CONFIG="$mikebd_bash_scripts_test_config" \
+  PATH="$mikebd_bash_scripts_test_fake_bin:$PATH" USE_RTK=1 XDG_CACHE_HOME="$mikebd_bash_scripts_test_tmp_root/xdg-cache" \
   "$mikebd_bash_scripts_test_root/codex/launcher/run.sh" --prepare "$prepare" --worktree-dir "$mikebd_bash_scripts_test_target" -- hello
 mikebd_bash_scripts_test_assert_file_contains "$prepare_output" "$mikebd_bash_scripts_test_target"
 mikebd_bash_scripts_test_assert_file_contains "$mikebd_bash_scripts_test_fake_output" "ARGS: <--sandbox> <workspace-write> <--model> <test-model>"
@@ -57,37 +60,33 @@ mikebd_bash_scripts_test_assert_file_contains "$mikebd_bash_scripts_test_fake_ou
 mikebd_bash_scripts_test_assert_file_contains "$mikebd_bash_scripts_test_fake_output" "<$mikebd_bash_scripts_test_add_dir>"
 mikebd_bash_scripts_test_assert_file_contains "$mikebd_bash_scripts_test_fake_output" "<hello>"
 mikebd_bash_scripts_test_assert_file_contains "$mikebd_bash_scripts_test_fake_output" "CODEX_HOME=$mikebd_bash_scripts_test_tmp_root/codex-home"
+mikebd_bash_scripts_test_assert_file_contains "$mikebd_bash_scripts_test_fake_output" "<$mikebd_bash_scripts_test_tmp_root/go-build-cache>"
+mikebd_bash_scripts_test_assert_file_contains "$mikebd_bash_scripts_test_fake_output" "<$mikebd_bash_scripts_test_tmp_root/go-module-cache>"
+mikebd_bash_scripts_test_assert_file_contains "$mikebd_bash_scripts_test_fake_output" "<$mikebd_bash_scripts_test_tmp_root/xdg-cache/golangci-lint>"
+mikebd_bash_scripts_test_assert_file_contains "$mikebd_bash_scripts_test_fake_output" "GOCACHE=<default>"
+mikebd_bash_scripts_test_assert_file_contains "$mikebd_bash_scripts_test_fake_output" "GOMODCACHE=<default>"
+mikebd_bash_scripts_test_assert_file_contains "$mikebd_bash_scripts_test_fake_output" "GOTMPDIR=<default>"
+mikebd_bash_scripts_test_assert_file_contains "$mikebd_bash_scripts_test_fake_output" "GOLANGCI_LINT_CACHE=<default>"
+mikebd_bash_scripts_test_assert_file_contains "$mikebd_bash_scripts_test_fake_output" "TMPDIR=<default>"
+[ -d "$mikebd_bash_scripts_test_tmp_root/go-build-cache" ] || mikebd_bash_scripts_test_fail "launcher did not create the Go build cache directory"
+[ -d "$mikebd_bash_scripts_test_tmp_root/go-module-cache" ] || mikebd_bash_scripts_test_fail "launcher did not create the Go module cache directory"
+[ -d "$mikebd_bash_scripts_test_tmp_root/xdg-cache/golangci-lint" ] || mikebd_bash_scripts_test_fail "launcher did not create the golangci-lint cache directory"
 
-empty_config="$mikebd_bash_scripts_test_tmp_root/empty-launcher.env"
-cat >"$empty_config" <<'EOF'
-CODEX_LAUNCHER_ADD_DIRS=()
-EOF
-default_cache_home="$mikebd_bash_scripts_test_tmp_root/cache/codex/$(basename "$mikebd_bash_scripts_test_target")"
-CODEX_BIN="$mikebd_bash_scripts_test_fake" MIKEBD_BASH_SCRIPTS_TEST_FAKE_OUTPUT="$mikebd_bash_scripts_test_fake_output" CODEX_HOME="" \
-  CODEX_LAUNCHER_CONFIG="$empty_config" XDG_CACHE_HOME="$mikebd_bash_scripts_test_tmp_root/cache" \
+no_go_bin="$mikebd_bash_scripts_test_tmp_root/no-go-bin"
+mkdir -p "$no_go_bin"
+env -u GOCACHE -u GOMODCACHE -u GOTMPDIR -u GOLANGCI_LINT_CACHE -u TMPDIR \
+  CODEX_BIN="$mikebd_bash_scripts_test_fake" MIKEBD_BASH_SCRIPTS_TEST_FAKE_OUTPUT="$mikebd_bash_scripts_test_fake_output" \
+  CODEX_LAUNCHER_CONFIG="$mikebd_bash_scripts_test_config" PATH="$no_go_bin:/usr/bin:/bin" \
   "$mikebd_bash_scripts_test_root/codex/launcher/run.sh" --worktree-dir "$mikebd_bash_scripts_test_target"
-mikebd_bash_scripts_test_assert_file_contains "$mikebd_bash_scripts_test_fake_output" "CODEX_HOME=<default>"
-if grep -Fq "<$default_cache_home>" "$mikebd_bash_scripts_test_fake_output"; then
-  mikebd_bash_scripts_test_fail "launcher exposed its cache directory through --add-dir"
+if grep -Fq "go-build-cache" "$mikebd_bash_scripts_test_fake_output"; then
+  mikebd_bash_scripts_test_fail "non-Go launcher invocation added the Go build cache"
 fi
-[ "$(mikebd_launcher_stat_value mode "$default_cache_home")" = "700" ] || {
-  mikebd_bash_scripts_test_fail "default launcher cache mode is not 700"
-}
-
-attacker_cache="$mikebd_bash_scripts_test_tmp_root/attacker-cache"
-unsafe_cache_root="$mikebd_bash_scripts_test_tmp_root/unsafe-cache-root"
-mkdir -p "$attacker_cache"
-ln -s "$attacker_cache" "$unsafe_cache_root"
-cat >"$mikebd_bash_scripts_test_tmp_root/unsafe-launcher.env" <<EOF
-CODEX_LAUNCHER_CACHE_ROOT="$unsafe_cache_root"
-EOF
-rm -f "$mikebd_bash_scripts_test_fake_output"
-if CODEX_BIN="$mikebd_bash_scripts_test_fake" MIKEBD_BASH_SCRIPTS_TEST_FAKE_OUTPUT="$mikebd_bash_scripts_test_fake_output" CODEX_HOME="" \
-  CODEX_LAUNCHER_CONFIG="$mikebd_bash_scripts_test_tmp_root/unsafe-launcher.env" \
-  "$mikebd_bash_scripts_test_root/codex/launcher/run.sh" --worktree-dir "$mikebd_bash_scripts_test_target" >"$mikebd_bash_scripts_test_tmp_root/unsafe-cache-output" 2>&1; then
-  mikebd_bash_scripts_test_fail "launcher accepted a symlinked cache root"
+if grep -Fq "go-module-cache" "$mikebd_bash_scripts_test_fake_output"; then
+  mikebd_bash_scripts_test_fail "non-Go launcher invocation added the Go module cache"
 fi
-[ ! -e "$mikebd_bash_scripts_test_fake_output" ] || mikebd_bash_scripts_test_fail "launcher invoked Codex with an unsafe cache root"
+if grep -Fq "golangci-lint" "$mikebd_bash_scripts_test_fake_output"; then
+  mikebd_bash_scripts_test_fail "non-Go launcher invocation added the golangci-lint cache"
+fi
 
 generated_target="$mikebd_bash_scripts_test_tmp_root/generated worktree"
 launcher="$mikebd_bash_scripts_test_tmp_root/codex-generated"

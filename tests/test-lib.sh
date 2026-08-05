@@ -93,7 +93,6 @@ mikebd_bash_scripts_test_setup_fake_codex() {
   mikebd_bash_scripts_test_config="$mikebd_bash_scripts_test_tmp_root/launcher.env"
   cat >"$mikebd_bash_scripts_test_config" <<EOF
 CODEX_LAUNCHER_ADD_DIRS=("$mikebd_bash_scripts_test_add_dir")
-CODEX_LAUNCHER_CACHE_ROOT="$mikebd_bash_scripts_test_tmp_root/cache/codex"
 CODEX_LAUNCHER_MODEL="test-model"
 CODEX_LAUNCHER_REASONING_EFFORT="low"
 CODEX_LAUNCHER_USE_RTK="1"
@@ -111,6 +110,11 @@ fi
 {
   printf 'USE_RTK=%s\n' "$USE_RTK"
   printf 'CODEX_HOME=%s\n' "${CODEX_HOME:-<default>}"
+  printf 'GOCACHE=%s\n' "${GOCACHE:-<default>}"
+  printf 'GOMODCACHE=%s\n' "${GOMODCACHE:-<default>}"
+  printf 'GOTMPDIR=%s\n' "${GOTMPDIR:-<default>}"
+  printf 'GOLANGCI_LINT_CACHE=%s\n' "${GOLANGCI_LINT_CACHE:-<default>}"
+  printf 'TMPDIR=%s\n' "${TMPDIR:-<default>}"
   printf 'PWD=%s\n' "$PWD"
   printf 'ARGS:'
   printf ' <%s>' "$@"
@@ -118,4 +122,21 @@ fi
 } >"$MIKEBD_BASH_SCRIPTS_TEST_FAKE_OUTPUT"
 EOF
   chmod 755 "$mikebd_bash_scripts_test_fake"
+
+  mikebd_bash_scripts_test_fake_bin="$mikebd_bash_scripts_test_tmp_root/fake-bin"
+  mkdir -p "$mikebd_bash_scripts_test_fake_bin"
+  cat >"$mikebd_bash_scripts_test_fake_bin/go" <<EOF
+#!/usr/bin/env bash
+case "\$1:\$2" in
+  env:GOCACHE) printf '%s\\n' "$mikebd_bash_scripts_test_tmp_root/go-build-cache" ;;
+  env:GOMODCACHE) printf '%s\\n' "$mikebd_bash_scripts_test_tmp_root/go-module-cache" ;;
+  *) exit 2 ;;
+esac
+EOF
+  chmod 755 "$mikebd_bash_scripts_test_fake_bin/go"
+  cat >"$mikebd_bash_scripts_test_fake_bin/golangci-lint" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+  chmod 755 "$mikebd_bash_scripts_test_fake_bin/golangci-lint"
 }

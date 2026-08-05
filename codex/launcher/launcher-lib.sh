@@ -219,7 +219,6 @@ mikebd_launcher_load_config() {
   CODEX_LAUNCHER_REASONING_EFFORT=""
   # shellcheck disable=SC2034
   CODEX_LAUNCHER_SANDBOX="workspace-write"
-  CODEX_LAUNCHER_CACHE_ROOT="${XDG_CACHE_HOME:-$HOME/.cache}/codex"
   # shellcheck disable=SC2034
   CODEX_LAUNCHER_USE_RTK="1"
   if [ -f "$config_path" ]; then
@@ -229,105 +228,8 @@ mikebd_launcher_load_config() {
   fi
 }
 
-mikebd_launcher_stat_value() {
-  local format="$1"
-  local path="$2"
-  local value
-
-  case "$format" in
-    mode)
-      if value="$(stat -f '%Lp' "$path" 2>/dev/null)"; then
-        printf '%s\n' "$value"
-        return 0
-      fi
-      stat -c '%a' "$path"
-      ;;
-    owner)
-      if value="$(stat -f '%u' "$path" 2>/dev/null)"; then
-        printf '%s\n' "$value"
-        return 0
-      fi
-      stat -c '%u' "$path"
-      ;;
-    *)
-      echo "error: unsupported launcher stat value: $format" >&2
-      return 1
-      ;;
-  esac
-}
-
-mikebd_launcher_prepare_private_directory() {
-  local directory="$1"
-  local expected_owner owner mode
-
-  case "$directory" in
-    /*) ;;
-    *)
-      echo "error: launcher cache directory must be absolute: $directory" >&2
-      return 1
-      ;;
-  esac
-  [ ! -L "$directory" ] || {
-    echo "error: launcher cache directory must not be a symlink: $directory" >&2
-    return 1
-  }
-  (umask 077; mkdir -p "$directory") || {
-    echo "error: unable to create launcher cache directory: $directory" >&2
-    return 1
-  }
-  [ ! -L "$directory" ] || {
-    echo "error: launcher cache directory must not be a symlink: $directory" >&2
-    return 1
-  }
-  expected_owner="$(id -u)"
-  owner="$(mikebd_launcher_stat_value owner "$directory")" || {
-    echo "error: unable to determine launcher cache owner: $directory" >&2
-    return 1
-  }
-  [ "$owner" = "$expected_owner" ] || {
-    echo "error: launcher cache directory is not owned by the current user: $directory" >&2
-    return 1
-  }
-  chmod 700 "$directory" || {
-    echo "error: unable to secure launcher cache directory: $directory" >&2
-    return 1
-  }
-  mode="$(mikebd_launcher_stat_value mode "$directory")" || {
-    echo "error: unable to determine launcher cache mode: $directory" >&2
-    return 1
-  }
-  [ "$mode" = "700" ] || {
-    echo "error: launcher cache directory must have mode 700: $directory" >&2
-    return 1
-  }
-}
-
-mikebd_launcher_cache_home_from_config() {
-  local worktree_dir="$1"
-  local worktree_name="${worktree_dir##*/}"
-
-  printf '%s\n' "${CODEX_LAUNCHER_CACHE_ROOT%/}/$worktree_name"
-}
-
-mikebd_launcher_prepare_cache_home() {
-  local worktree_dir="$1"
-  local cache_home
-
-  mikebd_launcher_prepare_private_directory "$CODEX_LAUNCHER_CACHE_ROOT" || return 1
-  cache_home="$(mikebd_launcher_cache_home_from_config "$worktree_dir")"
-  mikebd_launcher_prepare_private_directory "$cache_home" || return 1
-  printf '%s\n' "$cache_home"
-}
-
 mikebd_launcher_codex_home_from_config() {
   printf '%s\n' "${CODEX_HOME:-$HOME/.codex}"
-}
-
-mikebd_launcher_config_cache_home() {
-  local worktree_dir="$1"
-
-  mikebd_launcher_load_config
-  mikebd_launcher_cache_home_from_config "$worktree_dir"
 }
 
 mikebd_launcher_config_codex_home() {

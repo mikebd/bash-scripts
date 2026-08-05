@@ -11,8 +11,9 @@ Codex executable, and the fork-session workflow requires `jq`.
 ## Scripts
 
 - `run.sh` launches Codex for the current worktree or an explicit worktree.
-  It applies per-worktree cache directories, configured `--add-dir` paths,
-  optional model and reasoning settings, and RTK environment defaults.
+  It adds shared Go and golangci-lint cache directories when those tools are
+  available, along with configured `--add-dir` paths, optional model and
+  reasoning settings, and RTK environment defaults.
 - `new-worktree-launcher.sh` creates a Git worktree and a generated launcher
   with no default session. Run the launcher once, then pin the resulting
   session ID.
@@ -40,9 +41,6 @@ CODEX_LAUNCHER_ADD_DIRS=("$HOME/src/example/repo")
 CODEX_LAUNCHER_MODEL=""
 CODEX_LAUNCHER_REASONING_EFFORT=""
 CODEX_LAUNCHER_SANDBOX="workspace-write"
-# Defaults to ${XDG_CACHE_HOME:-$HOME/.cache}/codex when omitted.
-# Set an absolute private path only when an override is required.
-# CODEX_LAUNCHER_CACHE_ROOT="/absolute/private/codex"
 CODEX_LAUNCHER_USE_RTK="1"
 ```
 
@@ -50,10 +48,10 @@ The `USE_RTK` environment variable overrides `CODEX_LAUNCHER_USE_RTK` for a
 single run. By default, Codex retains its normal state home (`~/.codex`), so
 pinned sessions remain resumable from launchers and direct Codex invocations.
 Set `CODEX_HOME` in the configuration or environment only to use another Codex
-state home. The per-worktree cache home is absolute, current-user-owned, and
-non-symlinked; the launcher enforces mode `0700` before invoking Codex. It is
-intentionally not added with `--add-dir`, which is reserved for agent-writable
-workspace roots.
+state home. The runner preserves standard Go, golangci-lint, and temporary-file
+locations. When available, the shared Go build/module and golangci-lint cache
+directories are passed as writable `--add-dir` roots so sandboxed checks do not
+need permission escalation.
 
 ## Direct usage
 
