@@ -86,9 +86,21 @@ fi
 
 no_go_bin="$mikebd_bash_scripts_test_tmp_root/no-go-bin"
 mkdir -p "$no_go_bin"
+link_no_go_command() {
+  local command_name="$1"
+  local command_path
+
+  command_path="$(command -v "$command_name")" || {
+    mikebd_bash_scripts_test_fail "required test command is unavailable: $command_name"
+  }
+  ln -s "$command_path" "$no_go_bin/$command_name"
+}
+for no_go_command in bash env git mkdir dirname pwd sed awk grep mktemp chmod mv find; do
+  link_no_go_command "$no_go_command"
+done
 env -u GOCACHE -u GOMODCACHE -u GOTMPDIR -u GOLANGCI_LINT_CACHE -u TMPDIR \
   CODEX_BIN="$mikebd_bash_scripts_test_fake" MIKEBD_BASH_SCRIPTS_TEST_FAKE_OUTPUT="$mikebd_bash_scripts_test_fake_output" \
-  CODEX_LAUNCHER_CONFIG="$mikebd_bash_scripts_test_config" PATH="$no_go_bin:/usr/bin:/bin" \
+  CODEX_LAUNCHER_CONFIG="$mikebd_bash_scripts_test_config" PATH="$no_go_bin" \
   "$mikebd_bash_scripts_test_root/codex/launcher/run.sh" --worktree-dir "$mikebd_bash_scripts_test_target"
 if grep -Fq "go-build-cache" "$mikebd_bash_scripts_test_fake_output"; then
   mikebd_bash_scripts_test_fail "non-Go launcher invocation added the Go build cache"
