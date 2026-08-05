@@ -30,16 +30,32 @@ Examples of intentionally non-prioritized portability concerns include:
 - environment- or distro-specific defaults that may differ on macOS, other
   Linux distributions, or CI runners
 
+This default does not prevent a directory or script from declaring and meeting
+a stricter compatibility contract. Such exceptions must be explicit; they do
+not change the portability expectations of unrelated utilities.
+
+Currently, `git/worktree-links.sh` and `codex/launcher/` support the Bash 3.2
+included with macOS and common GNU/Linux environments. They use portable shell
+forms, account for GNU/BSD command differences where needed, and document
+their required external commands. This contract does not apply to other
+directories, including `codex/logs/`.
+
 ## Layout
 
 - `codex/logs/`: Codex SQLite log database helpers, including a trigger manager
   for suppressing noisy low-level log rows
+- `codex/launcher/`: portable shared primitives for repository-specific Codex
+  launchers, session lifecycle, and local launcher configuration
+- `git/worktree-links.sh`: portable, sourceable worktree-link engine with
+  repository-defined link rules
 - `postgres/`: backup, restore, and inspection scripts for PostgreSQL dumps
   - includes `psql-ro-wrapper.sh`, a generic read-only SQL runner that uses
     local `psql` when available and falls back to Docker `postgres:17`
   - file-mode Docker fallback mounts host SQL paths and runs `psql -f` instead
     of stdin piping because `docker run -i` can hang unpredictably in local
     wrapper usage
+- `tests/`: self-contained portable-DX tests for the launcher and worktree-link
+  primitives; run `tests/run-portable-dx.sh` locally
 
 ## Local Usage
 
