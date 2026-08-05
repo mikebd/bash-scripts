@@ -60,8 +60,10 @@ utilities in this repository.
   optional arrays explicitly and guard `${array[@]}` and `${array[*]}`
   expansions with a nonzero-length check. Do not rely on newer Bash behavior or
   `BASH_COMPAT` as proof of Bash 3.2 compatibility.
-- Use strict mode (`set -euo pipefail`) unless a documented compatibility reason
-  requires otherwise. When parsing options manually, validate that a value is
+- Use strict mode (`set -euo pipefail`) in executable entrypoints unless a
+  documented compatibility reason requires otherwise. Sourceable helpers must
+  preserve the caller's shell options; if they must change options temporarily,
+  save and restore them. When parsing options manually, validate that a value is
   present before reading it or shifting past it, and return status 2 for usage
   failures.
 - Prefer portable forms of common tools and provide clear GNU/BSD fallbacks for
@@ -70,8 +72,9 @@ utilities in this repository.
 - Use `mktemp` templates ending exactly in `XXXXXX`. Avoid process substitution
   when a producer failure must stop the workflow; capture the producer result
   explicitly before consuming it.
-- Keep sourceable files isolated from caller state: use namespaced functions and
-  variables, function-local initialization, and no caller-overwriting traps.
+- Keep sourceable files isolated from caller state: preserve shell options, use
+  namespaced functions and variables, function-local initialization, and no
+  caller-overwriting traps.
 - Validate changed portable scripts with `bash -n`, ShellCheck when available,
   and focused smoke coverage for compatibility and argument-handling branches.
 
