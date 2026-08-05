@@ -33,7 +33,15 @@ mikebd_bash_scripts_test_assert_file_contains() {
 }
 
 mikebd_bash_scripts_test_assert_symlink() {
-  [ -L "$1" ] || mikebd_bash_scripts_test_fail "expected symlink: $1"
+  local link_path="$1"
+  local expected_source="$2"
+  local actual_source
+
+  [ -L "$link_path" ] || mikebd_bash_scripts_test_fail "expected symlink: $link_path"
+  actual_source="$(readlink "$link_path")"
+  [ "$actual_source" = "$expected_source" ] || {
+    mikebd_bash_scripts_test_fail "symlink source = $actual_source, want $expected_source"
+  }
 }
 
 mikebd_bash_scripts_test_setup_fixture() {
@@ -85,6 +93,7 @@ mikebd_bash_scripts_test_setup_fake_codex() {
   mikebd_bash_scripts_test_config="$mikebd_bash_scripts_test_tmp_root/launcher.env"
   cat >"$mikebd_bash_scripts_test_config" <<EOF
 CODEX_LAUNCHER_ADD_DIRS=("$mikebd_bash_scripts_test_add_dir")
+CODEX_LAUNCHER_CACHE_ROOT="$mikebd_bash_scripts_test_tmp_root/cache/codex"
 CODEX_LAUNCHER_MODEL="test-model"
 CODEX_LAUNCHER_REASONING_EFFORT="low"
 CODEX_LAUNCHER_USE_RTK="1"
@@ -101,7 +110,7 @@ if [ "${1:-}" = "fork" ]; then
 fi
 {
   printf 'USE_RTK=%s\n' "$USE_RTK"
-  printf 'CODEX_HOME=%s\n' "$CODEX_HOME"
+  printf 'CODEX_HOME=%s\n' "${CODEX_HOME:-<default>}"
   printf 'PWD=%s\n' "$PWD"
   printf 'ARGS:'
   printf ' <%s>' "$@"

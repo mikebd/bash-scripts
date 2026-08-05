@@ -114,7 +114,7 @@ case "$subcommand" in
     repo_root="$(git -C "$worktree_dir" rev-parse --show-toplevel)"
     runner="$repo_root/$runner_relative_path"
     [ -x "$runner" ] || { echo "error: missing launcher runner: $runner" >&2; exit 1; }
-    codex_home="$(mikebd_launcher_config_cache_home "$worktree_dir")"
+    codex_home="$(mikebd_launcher_config_codex_home)"
     sessions_dir="$codex_home/sessions"
     before_sessions="$(mktemp "${TMPDIR:-/tmp}/mikebd-launcher-before.XXXXXX")"
     after_sessions="$(mktemp "${TMPDIR:-/tmp}/mikebd-launcher-after.XXXXXX")"
@@ -140,7 +140,11 @@ case "$subcommand" in
 
     if [ "${#candidates[@]}" -ne 1 ]; then
       echo "error: expected one forked child session, found ${#candidates[@]}" >&2
-      printf 'candidate session IDs: %s\n' "${candidates[*]:-none}" >&2
+      if [ "${#candidates[@]}" -eq 0 ]; then
+        printf 'candidate session IDs: none\n' >&2
+      else
+        printf 'candidate session IDs: %s\n' "${candidates[*]}" >&2
+      fi
       exit 1
     fi
     mikebd_launcher_render "$target_launcher" "$worktree_dir" "${candidates[0]}" "$runner_relative_path" "$marker"

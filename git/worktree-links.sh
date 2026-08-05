@@ -34,8 +34,14 @@ mikebd_worktree_links_add_path() {
     return 0
   fi
 
-  mkdir -p "$(dirname "$target_path")"
-  ln -s "$source_path" "$target_path"
+  mkdir -p "$(dirname "$target_path")" || {
+    MIKEBD_WORKTREE_LINKS_FAILED=1
+    return 1
+  }
+  ln -s "$source_path" "$target_path" || {
+    MIKEBD_WORKTREE_LINKS_FAILED=1
+    return 1
+  }
   echo "linked: $target_path -> $source_path"
   MIKEBD_WORKTREE_LINKS_CREATED=$((MIKEBD_WORKTREE_LINKS_CREATED + 1))
 }
@@ -56,7 +62,7 @@ mikebd_worktree_links_add_root_glob() {
     [ -e "$source_path" ] || [ -L "$source_path" ] || continue
     mikebd_worktree_links_add_path \
       "$source_path" \
-      "$MIKEBD_WORKTREE_LINKS_TARGET/$(basename "$source_path")"
+      "$MIKEBD_WORKTREE_LINKS_TARGET/$(basename "$source_path")" || return 1
   done
 }
 
@@ -71,7 +77,7 @@ mikebd_worktree_links_add_child_glob() {
       [ -e "$source_path" ] || [ -L "$source_path" ] || continue
       mikebd_worktree_links_add_path \
         "$source_path" \
-        "$MIKEBD_WORKTREE_LINKS_TARGET/$child_name/$(basename "$source_path")"
+        "$MIKEBD_WORKTREE_LINKS_TARGET/$child_name/$(basename "$source_path")" || return 1
     done
   done
 }
@@ -110,9 +116,15 @@ mikebd_worktree_links_main() {
 
   if [ -n "$target_arg" ]; then
     [ -d "$target_arg" ] || { echo "error: target is not a directory: $target_arg" >&2; return 1; }
-    git_context="$target_arg"
+    target_worktree="$(cd "$target_arg" && pwd -P)" || return 1
+    git_context="$target_worktree"
   fi
   repo_root="$(git -C "$git_context" rev-parse --show-toplevel)" || return 1
+  repo_root="$(cd "$repo_root" && pwd -P)" || return 1
+  if [ -n "$target_arg" ] && [ "$target_worktree" != "$repo_root" ]; then
+    echo "error: target must be a Git worktree root: $target_arg" >&2
+    return 1
+  fi
 
   worktree_listing="$(mktemp "${TMPDIR:-/tmp}/mikebd-worktree-list.XXXXXX")" || return 1
   if ! git -C "$repo_root" worktree list --porcelain >"$worktree_listing"; then
@@ -125,9 +137,7 @@ mikebd_worktree_links_main() {
   [ -n "$primary_worktree" ] || { echo "error: unable to determine primary worktree" >&2; return 1; }
   primary_worktree="$(cd "$primary_worktree" && pwd -P)" || return 1
 
-  if [ -n "$target_arg" ]; then
-    target_worktree="$(cd "$target_arg" && pwd -P)" || return 1
-  else
+  if [ -z "$target_arg" ]; then
     target_worktree="$repo_root"
   fi
 
@@ -139,9 +149,11 @@ mikebd_worktree_links_main() {
   MIKEBD_WORKTREE_LINKS_PRIMARY="$primary_worktree"
   MIKEBD_WORKTREE_LINKS_TARGET="$target_worktree"
   MIKEBD_WORKTREE_LINKS_CREATED=0
+  MIKEBD_WORKTREE_LINKS_FAILED=0
   MIKEBD_WORKTREE_LINKS_SKIPPED_EXISTING=0
   MIKEBD_WORKTREE_LINKS_SKIPPED_MISSING_SOURCE=0
 
-  "$rules_function"
+  "$rules_function" || return $?
+  [ "$MIKEBD_WORKTREE_LINKS_FAILED" -eq 0 ] || return 1
   echo "summary: target=$target_worktree created=$MIKEBD_WORKTREE_LINKS_CREATED skipped_existing=$MIKEBD_WORKTREE_LINKS_SKIPPED_EXISTING skipped_missing_source=$MIKEBD_WORKTREE_LINKS_SKIPPED_MISSING_SOURCE dry_run=$MIKEBD_WORKTREE_LINKS_DRY_RUN"
 }

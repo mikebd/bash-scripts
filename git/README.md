@@ -54,7 +54,7 @@ resolved from `git worktree list`; a primary-worktree target is reported as a
 no-op.
 
 The engine emits one line for each created or dry-run link, followed by a
-summary containing created, existing-target, missing-source, and dry-run
-counts. The `MIKEBD_WORKTREE_LINKS_*` variables are intentional callback state
-for the rule function and are reset for each `mikebd_worktree_links_main`
-invocation.
+summary containing `created`, `skipped_existing`, `skipped_missing_source`, and
+`dry_run` counts. The `MIKEBD_WORKTREE_LINKS_*` variables are intentional
+callback state for the rule function and are reset for each
+`mikebd_worktree_links_main` invocation.

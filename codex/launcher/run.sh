@@ -70,7 +70,6 @@ else
   worktree_dir="$(git rev-parse --show-toplevel)"
 fi
 
-worktree_name="${worktree_dir##*/}"
 worktree_git_dir="$(git -C "$worktree_dir" rev-parse --git-dir)"
 case "$worktree_git_dir" in
   /*) ;;
@@ -84,14 +83,17 @@ fi
 cd "$worktree_dir"
 
 mikebd_launcher_load_config
-codex_home="${CODEX_HOME:-${CODEX_LAUNCHER_CACHE_ROOT%/}/$worktree_name}"
-go_tmp_root="$codex_home"
+cache_home="$(mikebd_launcher_prepare_cache_home "$worktree_dir")" || exit 1
+go_tmp_root="$cache_home"
 go_cache_dir="$go_tmp_root/go-cache"
 go_mod_cache_dir="$go_tmp_root/go-mod"
 go_tmp_dir="$go_tmp_root/go-tmp"
 golangci_cache_dir="$go_tmp_root/golangci-cache"
 tmp_dir="$go_tmp_root/tmp"
-mkdir -p "$go_cache_dir" "$go_mod_cache_dir" "$go_tmp_dir" "$golangci_cache_dir" "$tmp_dir"
+for cache_dir in "$go_cache_dir" "$go_mod_cache_dir" "$go_tmp_dir" "$golangci_cache_dir" "$tmp_dir"; do
+  (umask 077; mkdir -p "$cache_dir") || exit 1
+  chmod 700 "$cache_dir" || exit 1
+done
 
 canonical_dir() {
   local path="$1"
@@ -109,15 +111,19 @@ add_dir_if_unique() {
   local canonical existing
 
   canonical="$(canonical_dir "$path" 2>/dev/null)" || return 0
-  for existing in "${add_dirs[@]}"; do
-    [ "$existing" = "$canonical" ] && return 0
-  done
+  if [ "${#add_dirs[@]}" -gt 0 ]; then
+    for existing in "${add_dirs[@]}"; do
+      [ "$existing" = "$canonical" ] && return 0
+    done
+  fi
   add_dirs+=("$canonical")
 }
 
-for configured_dir in "${CODEX_LAUNCHER_ADD_DIRS[@]}"; do
-  add_dir_if_unique "$configured_dir"
-done
+if [ "${#CODEX_LAUNCHER_ADD_DIRS[@]}" -gt 0 ]; then
+  for configured_dir in "${CODEX_LAUNCHER_ADD_DIRS[@]}"; do
+    add_dir_if_unique "$configured_dir"
+  done
+fi
 add_dir_if_unique "$worktree_dir/.context"
 add_dir_if_unique "$worktree_git_dir"
 
@@ -128,9 +134,11 @@ fi
 if [ -n "$CODEX_LAUNCHER_REASONING_EFFORT" ]; then
   codex_args+=(--config "model_reasoning_effort=$CODEX_LAUNCHER_REASONING_EFFORT")
 fi
-for add_dir in "${add_dirs[@]}"; do
-  codex_args+=(--add-dir "$add_dir")
-done
+if [ "${#add_dirs[@]}" -gt 0 ]; then
+  for add_dir in "${add_dirs[@]}"; do
+    codex_args+=(--add-dir "$add_dir")
+  done
+fi
 
 if [ -n "$fork_session_id" ] && [ -n "$session_id" ]; then
   echo "error: --session-id and --fork-session-id are mutually exclusive" >&2
@@ -140,20 +148,27 @@ fi
 mikebd_launcher_require_codex
 
 if [ -n "$fork_session_id" ]; then
-  codex_command=(fork "${codex_args[@]}" "$fork_session_id" "${codex_passthrough[@]}")
+  codex_command=(fork "${codex_args[@]}" "$fork_session_id")
 elif [ -n "$session_id" ]; then
-  codex_command=(resume "${codex_args[@]}" "$session_id" "${codex_passthrough[@]}")
+  codex_command=(resume "${codex_args[@]}" "$session_id")
 else
-  codex_command=("${codex_args[@]}" "${codex_passthrough[@]}")
+  codex_command=("${codex_args[@]}")
+fi
+if [ "${#codex_passthrough[@]}" -gt 0 ]; then
+  codex_command+=("${codex_passthrough[@]}")
 fi
 
-exec env \
-  CODEX_HOME="$codex_home" \
+codex_environment=(env)
+if [ -n "${CODEX_HOME:-}" ]; then
+  codex_environment+=("CODEX_HOME=$CODEX_HOME")
+fi
+codex_environment+=(
   USE_RTK="${USE_RTK:-$CODEX_LAUNCHER_USE_RTK}" \
   GOCACHE="${GOCACHE:-$go_cache_dir}" \
   GOMODCACHE="${GOMODCACHE:-$go_mod_cache_dir}" \
   GOTMPDIR="${GOTMPDIR:-$go_tmp_dir}" \
   GOLANGCI_LINT_CACHE="${GOLANGCI_LINT_CACHE:-$golangci_cache_dir}" \
   TMPDIR="${TMPDIR:-$tmp_dir}" \
-  RUST_LOG="${RUST_LOG:-warn}" \
-  "${CODEX_BIN:-codex}" "${codex_command[@]}"
+  RUST_LOG="${RUST_LOG:-warn}"
+)
+exec "${codex_environment[@]}" "${CODEX_BIN:-codex}" "${codex_command[@]}"
