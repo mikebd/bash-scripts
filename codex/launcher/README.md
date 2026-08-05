@@ -52,6 +52,8 @@ state home. The runner preserves standard Go, golangci-lint, and temporary-file
 locations. When available, the shared Go build/module and golangci-lint cache
 directories are passed as writable `--add-dir` roots so sandboxed checks do not
 need permission escalation.
+The fork workflow uses the same `CODEX_HOME` to inspect its `sessions/`
+directory, so custom state homes remain compatible with session forking.
 
 ## Direct usage
 
