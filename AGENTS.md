@@ -40,10 +40,44 @@ test that target without extending the requirement to unrelated utilities.
   user, document it briefly in the README or near the script entrypoint.
 - Users on other operating systems should be treated as adaptation cases, not
   as the default compatibility target.
-- `git/worktree-links.sh` and `codex/launcher/` are explicit exceptions: support
-  Bash 3.2 on macOS and common GNU/Linux environments, prefer portable command
-  forms, and guard GNU/BSD differences. Keep that contract scoped to those
-  paths unless a new directory or script documents its own exception.
+
+## Optional Portable-Shell Contracts
+
+Portability is opt-in per directory or script. A portable path declares its
+contract near the entrypoint, for example:
+
+```bash
+# Portability contract: Bash 3.2 on macOS and common GNU/Linux environments.
+```
+
+Once declared, apply the relevant contract requirements below and keep focused
+tests with the portable path. The contract does not apply to unrelated
+utilities in this repository.
+
+- Use `#!/usr/bin/env bash` and avoid Bash-4-only features such as associative
+  arrays, `mapfile`, and `readarray`.
+- With `set -u`, Bash 3.2 can fail when expanding an empty array. Initialize
+  optional arrays explicitly and guard `${array[@]}` and `${array[*]}`
+  expansions with a nonzero-length check. Do not rely on newer Bash behavior or
+  `BASH_COMPAT` as proof of Bash 3.2 compatibility.
+- Use strict mode (`set -euo pipefail`) unless a documented compatibility reason
+  requires otherwise. When parsing options manually, validate that a value is
+  present before reading it or shifting past it, and return status 2 for usage
+  failures.
+- Prefer portable forms of common tools and provide clear GNU/BSD fallbacks for
+  tools such as `stat`, `date`, `find`, `grep`, `mktemp`, `readlink`, `sed`,
+  `sort`, and `xargs`.
+- Use `mktemp` templates ending exactly in `XXXXXX`. Avoid process substitution
+  when a producer failure must stop the workflow; capture the producer result
+  explicitly before consuming it.
+- Keep sourceable files isolated from caller state: use namespaced functions and
+  variables, function-local initialization, and no caller-overwriting traps.
+- Validate changed portable scripts with `bash -n`, ShellCheck when available,
+  and focused smoke coverage for compatibility and argument-handling branches.
+
+The current opted-in paths are `git/worktree-links.sh` and
+`codex/launcher/`. Their README files document path-specific dependencies and
+usage in addition to this contract.
 
 ## Editing Expectations
 

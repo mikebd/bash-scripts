@@ -72,6 +72,18 @@ mikebd_bash_scripts_test_assert_file_contains "$mikebd_bash_scripts_test_fake_ou
 [ -d "$mikebd_bash_scripts_test_tmp_root/go-module-cache" ] || mikebd_bash_scripts_test_fail "launcher did not create the Go module cache directory"
 [ -d "$mikebd_bash_scripts_test_tmp_root/xdg-cache/golangci-lint" ] || mikebd_bash_scripts_test_fail "launcher did not create the golangci-lint cache directory"
 
+empty_config="$mikebd_bash_scripts_test_tmp_root/empty-launcher.env"
+empty_output="$mikebd_bash_scripts_test_tmp_root/empty-array-output"
+printf '%s\n' 'CODEX_LAUNCHER_ADD_DIRS=()' >"$empty_config"
+env -u CODEX_HOME -u GOCACHE -u GOMODCACHE -u GOTMPDIR -u GOLANGCI_LINT_CACHE -u TMPDIR \
+  CODEX_BIN="$mikebd_bash_scripts_test_fake" MIKEBD_BASH_SCRIPTS_TEST_FAKE_OUTPUT="$empty_output" \
+  CODEX_LAUNCHER_CONFIG="$empty_config" PATH="$mikebd_bash_scripts_test_fake_bin:$PATH" \
+  "$mikebd_bash_scripts_test_root/codex/launcher/run.sh" --worktree-dir "$mikebd_bash_scripts_test_target"
+mikebd_bash_scripts_test_assert_file_contains "$empty_output" 'ARGS: <--sandbox> <workspace-write>'
+if grep -Fq "<$mikebd_bash_scripts_test_add_dir>" "$empty_output"; then
+  mikebd_bash_scripts_test_fail "empty configured directories were passed to Codex"
+fi
+
 no_go_bin="$mikebd_bash_scripts_test_tmp_root/no-go-bin"
 mkdir -p "$no_go_bin"
 env -u GOCACHE -u GOMODCACHE -u GOTMPDIR -u GOLANGCI_LINT_CACHE -u TMPDIR \

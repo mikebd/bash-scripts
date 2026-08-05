@@ -94,6 +94,8 @@ canonical_dir() {
   fi
 }
 
+# Bash 3.2 with `set -u` errors when an empty array is expanded. Keep every
+# expansion of an optionally empty array behind a length check.
 add_dirs=()
 add_dir_if_unique() {
   local path="$1"

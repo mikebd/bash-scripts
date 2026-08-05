@@ -143,6 +143,7 @@ case "$subcommand" in
       if [ "${#candidates[@]}" -eq 0 ]; then
         printf 'candidate session IDs: none\n' >&2
       else
+        # The length check keeps this expansion safe under Bash 3.2 + set -u.
         printf 'candidate session IDs: %s\n' "${candidates[*]}" >&2
       fi
       exit 1
