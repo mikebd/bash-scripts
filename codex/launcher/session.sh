@@ -148,7 +148,16 @@ case "$subcommand" in
       fi
       exit 1
     fi
-    mikebd_launcher_render "$target_launcher" "$worktree_dir" "${candidates[0]}" "$runner_relative_path" "$marker"
+    extra_add_dirs=()
+    while IFS= read -r extra_add_dir; do
+      [ -n "$extra_add_dir" ] || continue
+      extra_add_dirs+=("$extra_add_dir")
+    done <<<"$(mikebd_launcher_extra_add_dirs "$launcher")"
+    if [ "${#extra_add_dirs[@]}" -gt 0 ]; then
+      mikebd_launcher_render "$target_launcher" "$worktree_dir" "${candidates[0]}" "$runner_relative_path" "$marker" "${extra_add_dirs[@]}"
+    else
+      mikebd_launcher_render "$target_launcher" "$worktree_dir" "${candidates[0]}" "$runner_relative_path" "$marker"
+    fi
     trap - EXIT
     cleanup_session_manifests
     echo "created fork launcher: $target_launcher"

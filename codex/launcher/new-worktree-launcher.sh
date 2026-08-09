@@ -22,6 +22,7 @@ Options:
   --launcher <path>         Launcher path; defaults to ~/.local/bin/codex-<basename>.
   --prepare <executable>    Optional local worktree preparation helper.
   --session-command <path>  Command shown for pinning the first session.
+  --add-dir <path>          Extra writable directory for this launcher; repeatable.
   --generator-marker <text> Required generated-launcher marker.
   --runner-relative-path <path>
                             Repository-relative runner path. Required.
@@ -37,6 +38,7 @@ prepare=""
 marker=""
 runner_relative_path=""
 session_command="$script_dir/session.sh"
+extra_add_dirs=()
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --worktree-dir) [ "$#" -ge 2 ] || { echo "error: missing value for --worktree-dir" >&2; exit 2; }; worktree_arg="$2"; shift 2 ;;
@@ -45,6 +47,7 @@ while [ "$#" -gt 0 ]; do
     --launcher) [ "$#" -ge 2 ] || { echo "error: missing value for --launcher" >&2; exit 2; }; launcher="$2"; shift 2 ;;
     --prepare) [ "$#" -ge 2 ] || { echo "error: missing value for --prepare" >&2; exit 2; }; prepare="$2"; shift 2 ;;
     --session-command) [ "$#" -ge 2 ] || { echo "error: missing value for --session-command" >&2; exit 2; }; session_command="$2"; shift 2 ;;
+    --add-dir) [ "$#" -ge 2 ] || { echo "error: missing value for --add-dir" >&2; exit 2; }; extra_add_dirs+=("$2"); shift 2 ;;
     --generator-marker) [ "$#" -ge 2 ] || { echo "error: missing value for --generator-marker" >&2; exit 2; }; marker="$2"; shift 2 ;;
     --runner-relative-path) [ "$#" -ge 2 ] || { echo "error: missing value for --runner-relative-path" >&2; exit 2; }; runner_relative_path="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
@@ -64,6 +67,14 @@ mikebd_launcher_validate_runner_relative_path "$runner_relative_path" || exit 1
   echo "error: missing executable session command: $session_command" >&2
   exit 1
 }
+if [ "${#extra_add_dirs[@]}" -gt 0 ]; then
+  for extra_add_dir in "${extra_add_dirs[@]}"; do
+    case "$extra_add_dir" in
+      /*) ;;
+      *) echo "error: launcher extra directory must be absolute: $extra_add_dir" >&2; exit 1 ;;
+    esac
+  done
+fi
 
 worktree_listing="$(mktemp "${TMPDIR:-/tmp}/mikebd-worktree-list.XXXXXX")"
 worktree_created=0
@@ -109,7 +120,11 @@ worktree_created=1
 if [ -n "$prepare" ]; then
   "$prepare" --target "$worktree_dir"
 fi
-mikebd_launcher_render "$launcher" "$worktree_dir" "" "$runner_relative_path" "$marker"
+if [ "${#extra_add_dirs[@]}" -gt 0 ]; then
+  mikebd_launcher_render "$launcher" "$worktree_dir" "" "$runner_relative_path" "$marker" "${extra_add_dirs[@]}"
+else
+  mikebd_launcher_render "$launcher" "$worktree_dir" "" "$runner_relative_path" "$marker"
+fi
 worktree_created=0
 
 echo "created worktree: $worktree_dir"

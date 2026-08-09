@@ -13,7 +13,7 @@ mikebd_launcher_require_git
 
 usage() {
   cat <<'EOF'
-Usage: run.sh [--prepare <executable>] [--worktree-dir <path>] [--session-id <id>] [--fork-session-id <id>] [--] [codex args...]
+Usage: run.sh [--prepare <executable>] [--worktree-dir <path>] [--session-id <id>] [--fork-session-id <id>] [--add-dir <path>]... [--] [codex args...]
 
 Runs Codex with local developer-workflow configuration for a Git worktree.
 EOF
@@ -23,6 +23,7 @@ prepare=""
 worktree_arg=""
 session_id=""
 fork_session_id=""
+extra_add_dirs=()
 codex_passthrough=()
 
 while [ "$#" -gt 0 ]; do
@@ -45,6 +46,11 @@ while [ "$#" -gt 0 ]; do
     --fork-session-id)
       [ "$#" -ge 2 ] || { echo "error: missing value for --fork-session-id" >&2; exit 2; }
       fork_session_id="$2"
+      shift 2
+      ;;
+    --add-dir)
+      [ "$#" -ge 2 ] || { echo "error: missing value for --add-dir" >&2; exit 2; }
+      extra_add_dirs+=("$2")
       shift 2
       ;;
     --help)
@@ -156,6 +162,11 @@ add_golangci_cache_directory() {
 if [ "${#CODEX_LAUNCHER_ADD_DIRS[@]}" -gt 0 ]; then
   for configured_dir in "${CODEX_LAUNCHER_ADD_DIRS[@]}"; do
     add_dir_if_unique "$configured_dir"
+  done
+fi
+if [ "${#extra_add_dirs[@]}" -gt 0 ]; then
+  for extra_add_dir in "${extra_add_dirs[@]}"; do
+    add_dir_if_unique "$extra_add_dir"
   done
 fi
 add_dir_if_unique "$worktree_dir/.context"

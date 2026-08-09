@@ -129,6 +129,26 @@ CODEX_BIN="$mikebd_bash_scripts_test_fake" MIKEBD_BASH_SCRIPTS_TEST_FAKE_OUTPUT=
   CODEX_LAUNCHER_CONFIG="$mikebd_bash_scripts_test_config" "$launcher" -- generated
 mikebd_bash_scripts_test_assert_file_contains "$mikebd_bash_scripts_test_fake_output" "<generated>"
 
+extra_add_dir_one="$mikebd_bash_scripts_test_tmp_root/extra add-dir-one"
+extra_add_dir_two="$mikebd_bash_scripts_test_tmp_root/extra-add-dir-two"
+mkdir -p "$extra_add_dir_one" "$extra_add_dir_two"
+extra_launcher="$mikebd_bash_scripts_test_tmp_root/codex-extra"
+extra_target="$mikebd_bash_scripts_test_tmp_root/generated-extra-worktree"
+(cd "$mikebd_bash_scripts_test_primary" && "$mikebd_bash_scripts_test_root/codex/launcher/new-worktree-launcher.sh" \
+  --worktree-dir "$extra_target" \
+  --branch feature/generated-extra \
+  --from HEAD \
+  --launcher "$extra_launcher" \
+  --generator-marker "$marker" \
+  --runner-relative-path scripts/dx/codex \
+  --add-dir "$extra_add_dir_one" \
+  --add-dir "$extra_add_dir_two") >"$mikebd_bash_scripts_test_tmp_root/new-extra-output"
+mikebd_bash_scripts_test_assert_file_contains "$extra_launcher" "# codex-launcher-extra-add-dir-hex:"
+CODEX_BIN="$mikebd_bash_scripts_test_fake" MIKEBD_BASH_SCRIPTS_TEST_FAKE_OUTPUT="$mikebd_bash_scripts_test_fake_output" CODEX_HOME="$mikebd_bash_scripts_test_tmp_root/generated-extra-codex-home" \
+  CODEX_LAUNCHER_CONFIG="$mikebd_bash_scripts_test_config" "$extra_launcher" -- generated-extra
+mikebd_bash_scripts_test_assert_file_contains "$mikebd_bash_scripts_test_fake_output" "<$extra_add_dir_one>"
+mikebd_bash_scripts_test_assert_file_contains "$mikebd_bash_scripts_test_fake_output" "<$extra_add_dir_two>"
+
 "$mikebd_bash_scripts_test_root/codex/launcher/session.sh" --generator-marker "$marker" --runner-relative-path scripts/dx/codex \
   pin --launcher "$launcher" --session-id session-123
 mikebd_bash_scripts_test_assert_file_contains "$launcher" "default_session_id=session-123"

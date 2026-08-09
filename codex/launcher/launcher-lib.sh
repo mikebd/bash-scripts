@@ -75,6 +75,16 @@ mikebd_launcher_field() {
   }
 }
 
+mikebd_launcher_extra_add_dirs() {
+  local launcher="$1"
+  local encoded
+
+  while IFS= read -r encoded; do
+    [ -n "$encoded" ] || continue
+    mikebd_launcher_hex_decode "$encoded"
+  done <<<"$(sed -n 's/^# codex-launcher-extra-add-dir-hex: //p' "$launcher")"
+}
+
 mikebd_launcher_file_mode() {
   local launcher="$1"
   local mode
@@ -126,12 +136,21 @@ mikebd_launcher_render() {
   local session_id="$3"
   local runner_relative_path="$4"
   local marker="$5"
+  shift 5
   local launcher_dir temp quoted_worktree quoted_session quoted_runner
-  local worktree_hex session_hex runner_hex
+  local worktree_hex session_hex runner_hex extra_add_dir quoted_extra_add_dir extra_add_dir_hex
 
   [ ! -e "$launcher" ] || { echo "error: launcher already exists: $launcher" >&2; return 1; }
   mikebd_launcher_validate_marker "$marker" || return 1
   mikebd_launcher_validate_runner_relative_path "$runner_relative_path" || return 1
+  if [ "$#" -gt 0 ]; then
+    for extra_add_dir in "$@"; do
+      case "$extra_add_dir" in
+        /*) ;;
+        *) echo "error: launcher extra directory must be absolute: $extra_add_dir" >&2; return 1 ;;
+      esac
+    done
+  fi
   case "$session_id" in
     ""|*[!A-Za-z0-9_-]*)
       [ -z "$session_id" ] || { echo "error: invalid session ID: $session_id" >&2; return 1; }
@@ -155,6 +174,10 @@ mikebd_launcher_render() {
       printf '%s\n' "# codex-launcher-worktree_dir-hex: $worktree_hex"
       printf '%s\n' "# codex-launcher-default_session_id-hex: $session_hex"
       printf '%s\n' "# codex-launcher-runner_relative_path-hex: $runner_hex"
+      for extra_add_dir in "$@"; do
+        extra_add_dir_hex="$(mikebd_launcher_hex_encode "$extra_add_dir")"
+        printf '%s\n' "# codex-launcher-extra-add-dir-hex: $extra_add_dir_hex"
+      done
       printf 'worktree_dir=%s\n' "$quoted_worktree"
       printf 'default_session_id=%s\n' "$quoted_session"
       printf 'runner_relative_path=%s\n' "$quoted_runner"
@@ -164,6 +187,12 @@ runner="$repo_root/$runner_relative_path"
 [ -x "$runner" ] || { echo "error: missing launcher runner: $runner" >&2; exit 1; }
 runner_args=(--worktree-dir "$worktree_dir")
 if [ -n "$default_session_id" ]; then runner_args+=(--session-id "$default_session_id"); fi
+EOF
+      for extra_add_dir in "$@"; do
+        quoted_extra_add_dir="$(printf '%q' "$extra_add_dir")"
+        printf 'runner_args+=(--add-dir %s)\n' "$quoted_extra_add_dir"
+      done
+      cat <<'EOF'
 exec "$runner" "${runner_args[@]}" -- "$@"
 EOF
     } >"$temp"
