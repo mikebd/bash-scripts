@@ -25,7 +25,7 @@ mikebd_launcher_require_jq() {
     return 0
   fi
 
-  echo "error: jq is required for reliable fork-session metadata parsing" >&2
+  echo "error: jq is required for reliable fork/adopt session metadata parsing" >&2
   if command -v brew >/dev/null 2>&1; then
     echo "hint: install it with: brew install jq" >&2
   else

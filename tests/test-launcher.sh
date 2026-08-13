@@ -142,7 +142,8 @@ extra_target="$mikebd_bash_scripts_test_tmp_root/generated-extra-worktree"
   --generator-marker "$marker" \
   --runner-relative-path scripts/dx/codex \
   --add-dir "$extra_add_dir_one" \
-  --add-dir "$extra_add_dir_two") >"$mikebd_bash_scripts_test_tmp_root/new-extra-output"
+  --add-dir "$extra_add_dir_two" \
+  --add-dir "$extra_add_dir_one") >"$mikebd_bash_scripts_test_tmp_root/new-extra-output"
 mikebd_bash_scripts_test_assert_file_contains "$extra_launcher" "# codex-launcher-extra-add-dir-hex:"
 CODEX_BIN="$mikebd_bash_scripts_test_fake" MIKEBD_BASH_SCRIPTS_TEST_FAKE_OUTPUT="$mikebd_bash_scripts_test_fake_output" CODEX_HOME="$mikebd_bash_scripts_test_tmp_root/generated-extra-codex-home" \
   CODEX_LAUNCHER_CONFIG="$mikebd_bash_scripts_test_config" "$extra_launcher" -- generated-extra
@@ -159,6 +160,66 @@ CODEX_BIN="$mikebd_bash_scripts_test_fake" MIKEBD_BASH_SCRIPTS_TEST_FAKE_OUTPUT=
   --generator-marker "$marker" --runner-relative-path scripts/dx/codex \
   fork --launcher "$launcher" --target-launcher "$fork_launcher"
 mikebd_bash_scripts_test_assert_file_contains "$fork_launcher" "default_session_id=child-123"
+
+"$mikebd_bash_scripts_test_root/codex/launcher/session.sh" --generator-marker "$marker" --runner-relative-path scripts/dx/codex \
+  pin --launcher "$extra_launcher" --session-id session-123
+fork_add_dir="$mikebd_bash_scripts_test_tmp_root/fork-add-dir"
+mkdir -p "$fork_add_dir"
+fork_add_dirs_launcher="$mikebd_bash_scripts_test_tmp_root/codex-fork-add-dirs"
+fork_add_dirs_codex_home="$mikebd_bash_scripts_test_tmp_root/fork-add-dirs-codex-home"
+CODEX_BIN="$mikebd_bash_scripts_test_fake" MIKEBD_BASH_SCRIPTS_TEST_FAKE_OUTPUT="$mikebd_bash_scripts_test_fake_output" CODEX_HOME="$fork_add_dirs_codex_home" \
+  CODEX_LAUNCHER_CONFIG="$mikebd_bash_scripts_test_config" "$mikebd_bash_scripts_test_root/codex/launcher/session.sh" \
+  --generator-marker "$marker" --runner-relative-path scripts/dx/codex \
+  fork --launcher "$extra_launcher" --target-launcher "$fork_add_dirs_launcher" --add-dir "$fork_add_dir" --add-dir "$fork_add_dir" --add-dir "$extra_add_dir_one"
+fork_add_dirs_stored="$(mikebd_launcher_extra_add_dirs "$fork_add_dirs_launcher")"
+[ "$(printf '%s\n' "$fork_add_dirs_stored" | grep -Fxc -- "$extra_add_dir_one")" -eq 1 ] || mikebd_bash_scripts_test_fail "forked launcher retained a duplicate inherited directory"
+[ "$(printf '%s\n' "$fork_add_dirs_stored" | grep -Fxc -- "$extra_add_dir_two")" -eq 1 ] || mikebd_bash_scripts_test_fail "forked launcher did not retain its second inherited directory"
+[ "$(printf '%s\n' "$fork_add_dirs_stored" | grep -Fxc -- "$fork_add_dir")" -eq 1 ] || mikebd_bash_scripts_test_fail "forked launcher retained a duplicate supplied directory"
+CODEX_BIN="$mikebd_bash_scripts_test_fake" MIKEBD_BASH_SCRIPTS_TEST_FAKE_OUTPUT="$mikebd_bash_scripts_test_fake_output" CODEX_HOME="$fork_add_dirs_codex_home" \
+  CODEX_LAUNCHER_CONFIG="$mikebd_bash_scripts_test_config" "$fork_add_dirs_launcher" -- fork-add-dirs
+fork_add_dirs_args="$(grep -F 'ARGS:' "$mikebd_bash_scripts_test_fake_output")"
+case "$fork_add_dirs_args" in
+  *"<$extra_add_dir_one>"*"<$extra_add_dir_two>"*"<$fork_add_dir>"*) ;;
+  *) mikebd_bash_scripts_test_fail "forked launcher did not preserve then append local directories" ;;
+esac
+adopt_codex_home="$mikebd_bash_scripts_test_tmp_root/adopt-codex-home"
+mkdir -p "$adopt_codex_home/sessions/2026/01/01"
+printf '{"type":"session_meta","payload":{"id":"adopted-123","forked_from_id":"different-parent","cwd":"%s"}}\n' "$extra_target" >"$adopt_codex_home/sessions/2026/01/01/adopted.jsonl"
+adopted_launcher="$mikebd_bash_scripts_test_tmp_root/codex-adopted"
+adopted_add_dir="$mikebd_bash_scripts_test_tmp_root/adopted-add-dir"
+mkdir -p "$adopted_add_dir"
+CODEX_HOME="$adopt_codex_home" CODEX_LAUNCHER_CONFIG="$mikebd_bash_scripts_test_config" \
+  "$mikebd_bash_scripts_test_root/codex/launcher/session.sh" \
+  --generator-marker "$marker" --runner-relative-path scripts/dx/codex \
+  adopt --launcher "$extra_launcher" --target-launcher "$adopted_launcher" --session-id adopted-123 --add-dir "$adopted_add_dir" --add-dir "$adopted_add_dir" --add-dir "$extra_add_dir_two" \
+  >"$mikebd_bash_scripts_test_tmp_root/adopt-output" 2>&1
+adopted_stored="$(mikebd_launcher_extra_add_dirs "$adopted_launcher")"
+[ "$(printf '%s\n' "$adopted_stored" | grep -Fxc -- "$extra_add_dir_one")" -eq 1 ] || mikebd_bash_scripts_test_fail "adopted launcher retained a duplicate inherited directory"
+[ "$(printf '%s\n' "$adopted_stored" | grep -Fxc -- "$extra_add_dir_two")" -eq 1 ] || mikebd_bash_scripts_test_fail "adopted launcher retained a duplicate supplied directory"
+[ "$(printf '%s\n' "$adopted_stored" | grep -Fxc -- "$adopted_add_dir")" -eq 1 ] || mikebd_bash_scripts_test_fail "adopted launcher retained a duplicate supplied directory"
+mikebd_bash_scripts_test_assert_file_contains "$adopted_launcher" "default_session_id=adopted-123"
+mikebd_bash_scripts_test_assert_file_contains "$mikebd_bash_scripts_test_tmp_root/adopt-output" "info: adopted session adopted-123 forked from different-parent, not source launcher session session-123"
+CODEX_BIN="$mikebd_bash_scripts_test_fake" MIKEBD_BASH_SCRIPTS_TEST_FAKE_OUTPUT="$mikebd_bash_scripts_test_fake_output" CODEX_HOME="$adopt_codex_home" \
+  CODEX_LAUNCHER_CONFIG="$mikebd_bash_scripts_test_config" "$adopted_launcher" -- adopted
+mikebd_bash_scripts_test_assert_file_contains "$mikebd_bash_scripts_test_fake_output" "<$extra_add_dir_one>"
+mikebd_bash_scripts_test_assert_file_contains "$mikebd_bash_scripts_test_fake_output" "<$extra_add_dir_two>"
+mikebd_bash_scripts_test_assert_file_contains "$mikebd_bash_scripts_test_fake_output" "<$adopted_add_dir>"
+adopted_args="$(grep -F 'ARGS:' "$mikebd_bash_scripts_test_fake_output")"
+case "$adopted_args" in
+  *"<$extra_add_dir_one>"*"<$extra_add_dir_two>"*"<$adopted_add_dir>"*) ;;
+  *) mikebd_bash_scripts_test_fail "adopted launcher did not preserve then append local directories" ;;
+esac
+printf '{"type":"session_meta","payload":{"id":"wrong-worktree","cwd":"%s"}}\n' "$mikebd_bash_scripts_test_target" >"$adopt_codex_home/sessions/2026/01/01/wrong-worktree.jsonl"
+wrong_worktree_launcher="$mikebd_bash_scripts_test_tmp_root/codex-wrong-worktree"
+if CODEX_HOME="$adopt_codex_home" CODEX_LAUNCHER_CONFIG="$mikebd_bash_scripts_test_config" \
+  "$mikebd_bash_scripts_test_root/codex/launcher/session.sh" \
+  --generator-marker "$marker" --runner-relative-path scripts/dx/codex \
+  adopt --launcher "$extra_launcher" --target-launcher "$wrong_worktree_launcher" --session-id wrong-worktree \
+  >"$mikebd_bash_scripts_test_tmp_root/wrong-worktree-output" 2>&1; then
+  mikebd_bash_scripts_test_fail "adopt accepted a session from another worktree"
+fi
+[ ! -e "$wrong_worktree_launcher" ] || mikebd_bash_scripts_test_fail "adopt created a launcher for another worktree"
+mikebd_bash_scripts_test_assert_file_contains "$mikebd_bash_scripts_test_tmp_root/wrong-worktree-output" "error: session wrong-worktree belongs to $mikebd_bash_scripts_test_target, not launcher worktree $extra_target"
 
 legacy_launcher="$mikebd_bash_scripts_test_tmp_root/codex-legacy"
 rm -rf "$mikebd_bash_scripts_test_tmp_root/generated-codex-home/sessions"

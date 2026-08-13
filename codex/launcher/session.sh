@@ -14,7 +14,8 @@ usage() {
   cat <<'EOF'
 Usage:
   session.sh --generator-marker <marker> [--runner-relative-path <path>] pin --launcher <path> --session-id <id>
-  session.sh --generator-marker <marker> [--runner-relative-path <path>] fork --launcher <source> --target-launcher <path>
+  session.sh --generator-marker <marker> [--runner-relative-path <path>] fork --launcher <source> --target-launcher <path> [--add-dir <path>]...
+  session.sh --generator-marker <marker> [--runner-relative-path <path>] adopt --launcher <source> --target-launcher <path> --session-id <id> [--add-dir <path>]...
 EOF
 }
 
@@ -40,6 +41,18 @@ session_file_previously_seen() {
   local manifest="$2"
 
   grep -Fqx -- "$file" "$manifest"
+}
+
+session_add_dir_if_unique() {
+  local candidate="$1"
+  local existing
+
+  if [ "${#session_add_dirs[@]}" -gt 0 ]; then
+    for existing in "${session_add_dirs[@]}"; do
+      [ "$existing" = "$candidate" ] && return 0
+    done
+  fi
+  session_add_dirs+=("$candidate")
 }
 
 marker=""
@@ -78,11 +91,14 @@ shift
 launcher=""
 target_launcher=""
 session_id=""
+additional_add_dirs=()
+session_add_dirs=()
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --launcher) [ "$#" -ge 2 ] || { echo "error: missing value for --launcher" >&2; exit 2; }; launcher="$2"; shift 2 ;;
     --target-launcher) [ "$#" -ge 2 ] || { echo "error: missing value for --target-launcher" >&2; exit 2; }; target_launcher="$2"; shift 2 ;;
     --session-id) [ "$#" -ge 2 ] || { echo "error: missing value for --session-id" >&2; exit 2; }; session_id="$2"; shift 2 ;;
+    --add-dir) [ "$#" -ge 2 ] || { echo "error: missing value for --add-dir" >&2; exit 2; }; additional_add_dirs+=("$2"); shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "error: unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -91,6 +107,7 @@ done
 case "$subcommand" in
   pin)
     [ -n "$launcher" ] && [ -n "$session_id" ] || { echo "error: pin requires --launcher and --session-id" >&2; exit 2; }
+    [ "${#additional_add_dirs[@]}" -eq 0 ] || { echo "error: pin does not accept --add-dir" >&2; exit 2; }
     mikebd_launcher_update_session "$launcher" "$session_id" "$marker"
     echo "pinned session $session_id in $launcher"
     ;;
@@ -148,13 +165,18 @@ case "$subcommand" in
       fi
       exit 1
     fi
-    extra_add_dirs=()
+    session_add_dirs=()
     while IFS= read -r extra_add_dir; do
       [ -n "$extra_add_dir" ] || continue
-      extra_add_dirs+=("$extra_add_dir")
+      session_add_dir_if_unique "$extra_add_dir"
     done <<<"$(mikebd_launcher_extra_add_dirs "$launcher")"
-    if [ "${#extra_add_dirs[@]}" -gt 0 ]; then
-      mikebd_launcher_render "$target_launcher" "$worktree_dir" "${candidates[0]}" "$runner_relative_path" "$marker" "${extra_add_dirs[@]}"
+    if [ "${#additional_add_dirs[@]}" -gt 0 ]; then
+      for extra_add_dir in "${additional_add_dirs[@]}"; do
+        session_add_dir_if_unique "$extra_add_dir"
+      done
+    fi
+    if [ "${#session_add_dirs[@]}" -gt 0 ]; then
+      mikebd_launcher_render "$target_launcher" "$worktree_dir" "${candidates[0]}" "$runner_relative_path" "$marker" "${session_add_dirs[@]}"
     else
       mikebd_launcher_render "$target_launcher" "$worktree_dir" "${candidates[0]}" "$runner_relative_path" "$marker"
     fi
@@ -162,6 +184,81 @@ case "$subcommand" in
     cleanup_session_manifests
     echo "created fork launcher: $target_launcher"
     echo "pinned session: ${candidates[0]}"
+    ;;
+  adopt)
+    mikebd_launcher_require_git
+    mikebd_launcher_require_jq
+    [ -n "$launcher" ] && [ -n "$target_launcher" ] && [ -n "$session_id" ] || {
+      echo "error: adopt requires --launcher, --target-launcher, and --session-id" >&2
+      exit 2
+    }
+    case "$session_id" in
+      *[!A-Za-z0-9_-]*) echo "error: invalid session ID: $session_id" >&2; exit 2 ;;
+    esac
+    mikebd_launcher_assert_generated "$launcher" "$marker"
+    [ ! -e "$target_launcher" ] || { echo "error: target launcher already exists: $target_launcher" >&2; exit 1; }
+    worktree_dir="$(mikebd_launcher_field "$launcher" worktree_dir)"
+    parent_session="$(mikebd_launcher_field "$launcher" default_session_id)"
+    if runner_relative_path="$(mikebd_launcher_field_optional "$launcher" runner_relative_path)"; then
+      :
+    else
+      field_status=$?
+      [ "$field_status" -eq 1 ] || exit "$field_status"
+      runner_relative_path="$fallback_runner_relative_path"
+    fi
+    mikebd_launcher_validate_runner_relative_path "$runner_relative_path"
+    repo_root="$(git -C "$worktree_dir" rev-parse --show-toplevel)"
+    runner="$repo_root/$runner_relative_path"
+    [ -x "$runner" ] || { echo "error: missing launcher runner: $runner" >&2; exit 1; }
+    codex_home="$(mikebd_launcher_config_codex_home)"
+    sessions_dir="$codex_home/sessions"
+    session_manifest="$(mktemp "${TMPDIR:-/tmp}/mikebd-launcher-adopt.XXXXXX")"
+    cleanup_adopt_manifest() {
+      rm -f "$session_manifest"
+    }
+    trap cleanup_adopt_manifest EXIT
+    capture_session_files "$sessions_dir" "$session_manifest"
+    session_files=()
+    while IFS= read -r file; do
+      [ "$(meta_value "$file" id)" = "$session_id" ] || continue
+      session_files+=("$file")
+    done <"$session_manifest"
+    if [ "${#session_files[@]}" -ne 1 ]; then
+      echo "error: expected one session metadata file for $session_id, found ${#session_files[@]}" >&2
+      exit 1
+    fi
+    session_cwd="$(meta_value "${session_files[0]}" cwd)"
+    [ "$session_cwd" = "$worktree_dir" ] || {
+      echo "error: session $session_id belongs to $session_cwd, not launcher worktree $worktree_dir" >&2
+      exit 1
+    }
+    forked_from="$(meta_value "${session_files[0]}" forked_from_id)"
+    if [ -n "$parent_session" ] && [ "$forked_from" != "$parent_session" ]; then
+      if [ -n "$forked_from" ]; then
+        echo "info: adopted session $session_id forked from $forked_from, not source launcher session $parent_session" >&2
+      else
+        echo "info: adopted session $session_id has no forked_from_id; source launcher session is $parent_session" >&2
+      fi
+    fi
+    session_add_dirs=()
+    while IFS= read -r inherited_add_dir; do
+      [ -n "$inherited_add_dir" ] || continue
+      session_add_dir_if_unique "$inherited_add_dir"
+    done <<<"$(mikebd_launcher_extra_add_dirs "$launcher")"
+    if [ "${#additional_add_dirs[@]}" -gt 0 ]; then
+      for inherited_add_dir in "${additional_add_dirs[@]}"; do
+        session_add_dir_if_unique "$inherited_add_dir"
+      done
+    fi
+    if [ "${#session_add_dirs[@]}" -gt 0 ]; then
+      mikebd_launcher_render "$target_launcher" "$worktree_dir" "$session_id" "$runner_relative_path" "$marker" "${session_add_dirs[@]}"
+    else
+      mikebd_launcher_render "$target_launcher" "$worktree_dir" "$session_id" "$runner_relative_path" "$marker"
+    fi
+    trap - EXIT
+    cleanup_adopt_manifest
+    echo "created adopted session launcher: $target_launcher"
+    echo "pinned session: $session_id"
     ;;
   *)
     echo "error: unknown subcommand: $subcommand" >&2
