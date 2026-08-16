@@ -282,4 +282,96 @@ if git -C "$mikebd_bash_scripts_test_primary" show-ref --verify --quiet refs/hea
 fi
 [ -e "$render_failure_launcher" ] || mikebd_bash_scripts_test_fail "rollback removed the externally created launcher"
 
+stack_source="$mikebd_bash_scripts_test_target"
+stack_source_branch="feature/test"
+stack_source_name="$(basename "$stack_source")"
+stack_suffix="-child"
+stack_target="$(dirname "$stack_source")/${stack_source_name}${stack_suffix}"
+stack_branch="${stack_source_branch}${stack_suffix}"
+stack_home="$mikebd_bash_scripts_test_tmp_root/stack-home"
+stack_launcher="$stack_home/.local/bin/codex-${stack_source_name}${stack_suffix}"
+stack_add_dir_one="$mikebd_bash_scripts_test_tmp_root/stack-add-dir-one"
+stack_add_dir_two="$mikebd_bash_scripts_test_tmp_root/stack-add-dir-two"
+mkdir -p "$stack_add_dir_one" "$stack_add_dir_two"
+printf 'uncommitted source change\n' >>"$stack_source/README.md"
+(cd "$stack_source" && HOME="$stack_home" "$mikebd_bash_scripts_test_root/codex/launcher/stack-worktree-launcher.sh" \
+  --suffix "$stack_suffix" \
+  --generator-marker "$marker" \
+  --runner-relative-path scripts/dx/codex \
+  --add-dir "$stack_add_dir_one" \
+  --add-dir "$stack_add_dir_two") >"$mikebd_bash_scripts_test_tmp_root/stack-output"
+[ -d "$stack_target" ] || mikebd_bash_scripts_test_fail "stack launcher did not create a sibling worktree"
+[ "$(git -C "$stack_target" branch --show-current)" = "$stack_branch" ] || \
+  mikebd_bash_scripts_test_fail "stack launcher derived the wrong branch"
+[ "$(git -C "$stack_target" rev-parse HEAD)" = "$(git -C "$stack_source" rev-parse HEAD)" ] || \
+  mikebd_bash_scripts_test_fail "stack launcher did not use the source committed HEAD"
+if grep -Fq 'uncommitted source change' "$stack_target/README.md"; then
+  mikebd_bash_scripts_test_fail "stack launcher copied uncommitted source changes"
+fi
+mikebd_bash_scripts_test_assert_file_contains "$stack_launcher" "default_session_id=''"
+stack_add_dirs="$(mikebd_launcher_extra_add_dirs "$stack_launcher")"
+[ "$(printf '%s\n' "$stack_add_dirs" | grep -Fxc -- "$stack_add_dir_one")" -eq 1 ] || \
+  mikebd_bash_scripts_test_fail "stack launcher omitted the first add-dir"
+[ "$(printf '%s\n' "$stack_add_dirs" | grep -Fxc -- "$stack_add_dir_two")" -eq 1 ] || \
+  mikebd_bash_scripts_test_fail "stack launcher omitted the second add-dir"
+
+empty_runner_suffix="-empty-runner"
+if (cd "$stack_source" && HOME="$stack_home" "$mikebd_bash_scripts_test_root/codex/launcher/stack-worktree-launcher.sh" \
+  --suffix "$empty_runner_suffix" \
+  --generator-marker "$marker" \
+  --runner-relative-path "") >"$mikebd_bash_scripts_test_tmp_root/empty-runner-output" 2>&1; then
+  mikebd_bash_scripts_test_fail "stack launcher accepted an empty runner path"
+fi
+mikebd_bash_scripts_test_assert_file_contains "$mikebd_bash_scripts_test_tmp_root/empty-runner-output" "error: --runner-relative-path is required"
+[ ! -e "$(dirname "$stack_source")/${stack_source_name}${empty_runner_suffix}" ] || \
+  mikebd_bash_scripts_test_fail "empty runner path created a target worktree"
+if git -C "$stack_source" show-ref --verify --quiet "refs/heads/${stack_source_branch}${empty_runner_suffix}"; then
+  mikebd_bash_scripts_test_fail "empty runner path created a target branch"
+fi
+
+if (cd "$stack_source" && HOME="$stack_home" "$mikebd_bash_scripts_test_root/codex/launcher/stack-worktree-launcher.sh" \
+  --suffix /unsafe \
+  --generator-marker "$marker" \
+  --runner-relative-path scripts/dx/codex) >"$mikebd_bash_scripts_test_tmp_root/unsafe-stack-output" 2>&1; then
+  mikebd_bash_scripts_test_fail "stack launcher accepted an unsafe suffix"
+fi
+mikebd_bash_scripts_test_assert_file_contains "$mikebd_bash_scripts_test_tmp_root/unsafe-stack-output" "error: suffix must be a single path-name fragment: /unsafe"
+
+branch_collision_suffix="-branch-collision"
+branch_collision="${stack_source_branch}${branch_collision_suffix}"
+git -C "$stack_source" branch "$branch_collision"
+if (cd "$stack_source" && HOME="$stack_home" "$mikebd_bash_scripts_test_root/codex/launcher/stack-worktree-launcher.sh" \
+  --suffix "$branch_collision_suffix" \
+  --generator-marker "$marker" \
+  --runner-relative-path scripts/dx/codex) >"$mikebd_bash_scripts_test_tmp_root/branch-collision-output" 2>&1; then
+  mikebd_bash_scripts_test_fail "stack launcher accepted an existing branch"
+fi
+mikebd_bash_scripts_test_assert_file_contains "$mikebd_bash_scripts_test_tmp_root/branch-collision-output" "error: target branch already exists: $branch_collision"
+
+launcher_collision_suffix="-launcher-collision"
+launcher_collision_name="${stack_source_name}${launcher_collision_suffix}"
+launcher_collision="$stack_home/.local/bin/codex-$launcher_collision_name"
+mkdir -p "$(dirname "$launcher_collision")"
+ln -s "$mikebd_bash_scripts_test_tmp_root/missing-launcher" "$launcher_collision"
+if (cd "$stack_source" && HOME="$stack_home" "$mikebd_bash_scripts_test_root/codex/launcher/stack-worktree-launcher.sh" \
+  --suffix "$launcher_collision_suffix" \
+  --generator-marker "$marker" \
+  --runner-relative-path scripts/dx/codex) >"$mikebd_bash_scripts_test_tmp_root/launcher-collision-output" 2>&1; then
+  mikebd_bash_scripts_test_fail "stack launcher replaced an existing launcher"
+fi
+[ ! -e "$(dirname "$stack_source")/$launcher_collision_name" ] || \
+  mikebd_bash_scripts_test_fail "launcher collision created a worktree"
+[ -L "$launcher_collision" ] || \
+  mikebd_bash_scripts_test_fail "launcher collision replaced the existing launcher"
+
+git -C "$stack_source" switch --detach -q
+if (cd "$stack_source" && HOME="$stack_home" "$mikebd_bash_scripts_test_root/codex/launcher/stack-worktree-launcher.sh" \
+  --suffix -detached \
+  --generator-marker "$marker" \
+  --runner-relative-path scripts/dx/codex) >"$mikebd_bash_scripts_test_tmp_root/detached-stack-output" 2>&1; then
+  mikebd_bash_scripts_test_fail "stack launcher accepted a detached source worktree"
+fi
+mikebd_bash_scripts_test_assert_file_contains "$mikebd_bash_scripts_test_tmp_root/detached-stack-output" "error: stack creation requires an attached source branch"
+git -C "$stack_source" switch -q "$stack_source_branch"
+
 echo "PASS: generic launcher tests"

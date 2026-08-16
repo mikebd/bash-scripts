@@ -16,6 +16,7 @@ for portable_script in \
   "$mikebd_bash_scripts_test_root/codex/launcher/launcher-lib.sh" \
   "$mikebd_bash_scripts_test_root/codex/launcher/run.sh" \
   "$mikebd_bash_scripts_test_root/codex/launcher/new-worktree-launcher.sh" \
+  "$mikebd_bash_scripts_test_root/codex/launcher/stack-worktree-launcher.sh" \
   "$mikebd_bash_scripts_test_root/codex/launcher/session.sh"; do
   if grep -E 'declare[[:space:]]+-A|mapfile|readarray' "$portable_script" >/dev/null; then
     mikebd_bash_scripts_test_fail "$(basename "$portable_script") contains a Bash-4-only construct"
