@@ -49,6 +49,7 @@ done
 
 [ -n "$suffix" ] || { echo "error: --suffix is required" >&2; exit 2; }
 [ -n "$marker" ] || { echo "error: --generator-marker is required" >&2; exit 2; }
+[ -n "$runner_relative_path" ] || { echo "error: --runner-relative-path is required" >&2; exit 2; }
 case "$suffix" in
   */*|*\\*|*$'\n'*|*$'\r'*)
     echo "error: suffix must be a single path-name fragment: $suffix" >&2

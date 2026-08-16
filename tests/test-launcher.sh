@@ -315,6 +315,20 @@ stack_add_dirs="$(mikebd_launcher_extra_add_dirs "$stack_launcher")"
 [ "$(printf '%s\n' "$stack_add_dirs" | grep -Fxc -- "$stack_add_dir_two")" -eq 1 ] || \
   mikebd_bash_scripts_test_fail "stack launcher omitted the second add-dir"
 
+empty_runner_suffix="-empty-runner"
+if (cd "$stack_source" && HOME="$stack_home" "$mikebd_bash_scripts_test_root/codex/launcher/stack-worktree-launcher.sh" \
+  --suffix "$empty_runner_suffix" \
+  --generator-marker "$marker" \
+  --runner-relative-path "") >"$mikebd_bash_scripts_test_tmp_root/empty-runner-output" 2>&1; then
+  mikebd_bash_scripts_test_fail "stack launcher accepted an empty runner path"
+fi
+mikebd_bash_scripts_test_assert_file_contains "$mikebd_bash_scripts_test_tmp_root/empty-runner-output" "error: --runner-relative-path is required"
+[ ! -e "$(dirname "$stack_source")/${stack_source_name}${empty_runner_suffix}" ] || \
+  mikebd_bash_scripts_test_fail "empty runner path created a target worktree"
+if git -C "$stack_source" show-ref --verify --quiet "refs/heads/${stack_source_branch}${empty_runner_suffix}"; then
+  mikebd_bash_scripts_test_fail "empty runner path created a target branch"
+fi
+
 if (cd "$stack_source" && HOME="$stack_home" "$mikebd_bash_scripts_test_root/codex/launcher/stack-worktree-launcher.sh" \
   --suffix /unsafe \
   --generator-marker "$marker" \
@@ -347,6 +361,8 @@ if (cd "$stack_source" && HOME="$stack_home" "$mikebd_bash_scripts_test_root/cod
 fi
 [ ! -e "$(dirname "$stack_source")/$launcher_collision_name" ] || \
   mikebd_bash_scripts_test_fail "launcher collision created a worktree"
+[ -L "$launcher_collision" ] || \
+  mikebd_bash_scripts_test_fail "launcher collision replaced the existing launcher"
 
 git -C "$stack_source" switch --detach -q
 if (cd "$stack_source" && HOME="$stack_home" "$mikebd_bash_scripts_test_root/codex/launcher/stack-worktree-launcher.sh" \
