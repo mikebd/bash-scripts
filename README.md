@@ -2,11 +2,8 @@
 
 A small collection of Bash scripts for tasks where shell is still the simplest and most direct tool.
 
-This repo is intentionally separate from [`mikebd/py-scripts`](https://github.com/mikebd/py-scripts):
-
-- use this repo for lightweight shell-first utilities
-- use the Python repo for more structured tools with richer UX, tests, and packaging
-- some scripts may start here and later be promoted into the Python repo when the logic outgrows Bash
+This repo is the lightweight shell-first companion to
+[`mikebd/py-scripts`](https://github.com/mikebd/py-scripts).
 
 ## Table of Contents
 
@@ -14,7 +11,7 @@ This repo is intentionally separate from [`mikebd/py-scripts`](https://github.co
 - [Layout](#layout)
 - [Local Usage](#local-usage)
 - [Branch Context](#branch-context)
-- [Related Repo](#related-repo)
+- [Bash or Python?](#bash-or-python)
 
 ## Portability
 
@@ -104,7 +101,7 @@ traceability, handoffs, and reproducible investigations.
 See the [Branch Context guidance](https://github.com/mikebd/ai-agent-skills/tree/main/shared/references/branch-context)
 for the overall model and conventions.
 
-## Related Repo
+## Bash or Python?
 
 If you want tools that are more polished, typed, or likely to be reused as maintained CLIs, check:
 
