@@ -8,6 +8,14 @@ This repo is intentionally separate from [`mikebd/py-scripts`](https://github.co
 - use the Python repo for more structured tools with richer UX, tests, and packaging
 - some scripts may start here and later be promoted into the Python repo when the logic outgrows Bash
 
+## Table of Contents
+
+- [Portability](#portability)
+- [Layout](#layout)
+- [Local Usage](#local-usage)
+- [Branch Context](#branch-context)
+- [Related Repo](#related-repo)
+
 ## Portability
 
 This repo optimizes for simplicity, directness, and local usefulness, not for
@@ -84,6 +92,17 @@ Use this template as a starting point for those shims:
 
 It demonstrates translating `DB_*` source variables into the PG-native
 variables expected by `psql-ro-wrapper.sh`.
+
+## Branch Context
+
+This repository's optional Branch Context is maintained on the
+[`bash-scripts-context` branch](https://github.com/mikebd/public-branch-context/tree/bash-scripts-context)
+of the public Branch Context repository. It provides branch-scoped working
+context for coding-agent workflows, including resumability, decision
+traceability, handoffs, and reproducible investigations.
+
+See the [Branch Context guidance](https://github.com/mikebd/ai-agent-skills/tree/main/shared/references/branch-context)
+for the overall model and conventions.
 
 ## Related Repo
 
