@@ -8,10 +8,17 @@ mikebd_bash_scripts_test_tmp_root=""
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck source=test-lib.sh disable=SC1091
 source "$script_dir/test-lib.sh"
+# shellcheck disable=SC2154
+# shellcheck source=../git/worktree-links.sh disable=SC1091
+source "$mikebd_bash_scripts_test_root/git/worktree-links.sh"
 trap 'mikebd_bash_scripts_test_cleanup' EXIT
 
 mikebd_bash_scripts_test_setup_fixture
+if command -v mikebd_require_git >/dev/null 2>&1; then
+  mikebd_bash_scripts_test_fail "worktree-link test preloaded generic requirements"
+fi
 mikebd_worktree_links_main mikebd_bash_scripts_test_link_rules --target "$mikebd_bash_scripts_test_target" >"$mikebd_bash_scripts_test_tmp_root/link-output"
+mikebd_require_git || mikebd_bash_scripts_test_fail "worktree-link engine did not load generic requirements"
 mikebd_bash_scripts_test_assert_symlink "$mikebd_bash_scripts_test_target/.context" "$mikebd_bash_scripts_test_primary/.context"
 mikebd_bash_scripts_test_assert_symlink "$mikebd_bash_scripts_test_target/Procfile.local" "$mikebd_bash_scripts_test_primary/Procfile.local"
 mikebd_bash_scripts_test_assert_symlink "$mikebd_bash_scripts_test_target/service/.env.local" "$mikebd_bash_scripts_test_primary/service/.env.local"

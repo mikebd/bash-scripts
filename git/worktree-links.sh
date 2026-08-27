@@ -87,6 +87,7 @@ mikebd_worktree_links_main() {
   local target_arg=""
   local git_context="."
   local repo_root worktree_listing primary_worktree target_worktree
+  local mikebd_worktree_links_script_dir
 
   shift
   MIKEBD_WORKTREE_LINKS_DRY_RUN=0
@@ -119,6 +120,10 @@ mikebd_worktree_links_main() {
     target_worktree="$(cd "$target_arg" && pwd -P)" || return 1
     git_context="$target_worktree"
   fi
+  mikebd_worktree_links_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)" || return 1
+  # shellcheck source=../lib/requirements.sh disable=SC1091
+  source "$mikebd_worktree_links_script_dir/../lib/requirements.sh" || return 1
+  mikebd_require_git || return 1
   repo_root="$(git -C "$git_context" rev-parse --show-toplevel)" || return 1
   repo_root="$(cd "$repo_root" && pwd -P)" || return 1
   if [ -n "$target_arg" ] && [ "$target_worktree" != "$repo_root" ]; then

@@ -79,8 +79,8 @@ utilities in this repository.
   and focused smoke coverage for compatibility and argument-handling branches.
 
 The current opted-in paths are `git/worktree-links.sh` and
-`codex/launcher/`. Their README files document path-specific dependencies and
-usage in addition to this contract.
+`lib/requirements.sh`. Their README files document path-specific dependencies
+and usage in addition to this contract.
 
 ## Editing Expectations
 
