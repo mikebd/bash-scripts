@@ -6,8 +6,13 @@ which files a repository needs; the consuming repository supplies a rule
 function.
 
 It supports Bash 3.2 on macOS and common GNU/Linux environments. It requires
-`git` and common POSIX shell utilities. Existing files and links are never
-overwritten.
+`git` and common POSIX shell utilities. The engine loads
+`lib/requirements.sh` itself and checks for Git before performing work, so
+adapters do not need a launcher-specific requirements dependency. Existing
+files and links are never overwritten.
+
+External adapters that need command checks beyond the engine can source
+`lib/requirements.sh` directly; see `lib/README.md` for its API.
 
 ## Adapter pattern
 
