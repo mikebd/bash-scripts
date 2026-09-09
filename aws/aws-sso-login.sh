@@ -10,10 +10,31 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   exit 0
 fi
 
+profile_args=()
+args=("$@")
+index=0
+while ((index < ${#args[@]})); do
+  case "${args[index]}" in
+    --profile)
+      if ((index + 1 < ${#args[@]})); then
+        profile_args+=(--profile "${args[index + 1]}")
+      fi
+      index=$((index + 2))
+      ;;
+    --profile=*)
+      profile_args+=(--profile "${args[index]#--profile=}")
+      index=$((index + 1))
+      ;;
+    *)
+      index=$((index + 1))
+      ;;
+  esac
+done
+
 err_file="$(mktemp "${TMPDIR:-/tmp}/aws-sso-login-check.XXXXXX")"
 trap 'rm -f "$err_file"' EXIT
 
-if aws sts get-caller-identity --output json >/dev/null 2>"$err_file"; then
+if aws sts get-caller-identity "${profile_args[@]}" --output json >/dev/null 2>"$err_file"; then
   printf 'AWS session is current; login not required.\n'
   exit 0
 fi
@@ -28,6 +49,8 @@ case "$check_error" in
   *"ExpiredToken"*|\
   *"expired token"*|\
   *"security token included in the request is expired"*|\
+  *"Error loading SSO Token"*|\
+  *"Token has expired and refresh failed"*|\
   *"SSO session"*|\
   *"The config profile"* )
     exec aws sso login "$@"
